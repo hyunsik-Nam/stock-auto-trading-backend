@@ -9,7 +9,9 @@ from ..utils.advisor_types import AdvisorState
 from ..utils.route_function import *
 from ..utils.node_function import *
 from ..handlers.handler_registry import handler_registry
+from app.core.logging_config import getLogger
 
+logger = getLogger(__name__)
 class LangGraphCallbackHandler(BaseCallbackHandler):
     """LangGraph 전용 콜백 Handler"""
     
@@ -19,13 +21,17 @@ class LangGraphCallbackHandler(BaseCallbackHandler):
     def on_chain_start(self, serialized: Optional[Dict[str, Any]], inputs: Dict[str, Any], **kwargs) -> None:
         """체인 시작 시 콜백 - None 안전성 확보"""
         try:
+            metadata = kwargs.get('metadata', {})
             # serialized가 None인 경우 처리
-            if serialized is None:
+            if kwargs.get('name') is None:
                 node_name = "unknown_chain"
             else:
-                node_name = serialized.get("name", "unknown") if isinstance(serialized, dict) else "unknown"
+                node_name = kwargs.get('name','unknown') if isinstance(kwargs, dict) else "unknown"
             
-            print(f"🚀 노드 '{node_name}' 시작")
+            logger.info(f"🚀 체인 '{node_name}' 시작")
+            logger.info(f"tags: {kwargs.get('tags', [])}")
+            logger.info(f"step : {metadata.get('langgraph_step')}")
+            logger.info(f"nodename : {metadata.get('langgraph_node')}")
             
             if self.stream_callback:
                 self.stream_callback(f"⏳ {node_name} 처리 중...")
@@ -86,11 +92,11 @@ class LLMServiceGraph:
         workflow = StateGraph(AdvisorState)
 
         # 노드 추가
-        workflow.add_node("classify_main", classify_main)
-        workflow.add_node("classify_stock", classify_stock)
-        workflow.add_node("process_stock_with_handlers", process_stock_with_handlers)
-        workflow.add_node("process_general", process_general)
-        workflow.add_node("handle_error", handle_error)
+        workflow.add_node("classify_main", classify_main_runnable)
+        workflow.add_node("classify_stock", classify_stock_runnable)
+        workflow.add_node("process_stock_with_handlers", process_stock_with_handlers_runnable)
+        workflow.add_node("process_general", process_general_runnable)
+        workflow.add_node("handle_error", handle_error_runnable)
 
         # 엣지 추가
         workflow.add_edge(START, "classify_main")
@@ -148,7 +154,7 @@ class LLMServiceGraph:
             
             run_config = RunnableConfig(
                 callbacks=callbacks,
-                tags=["advisor_session"],
+                tags=["advisor_session","langgraph"],
                 metadata={
                     "session_id": "12345", 
                     "handlers_available": len(handler_registry.list_handlers())

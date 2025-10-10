@@ -9,6 +9,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 from langchain.output_parsers.json import SimpleJsonOutputParser
+from langchain_core.runnables import RunnableLambda
 import asyncio
 
 from ..utils.promptManager import YAMLPromptManager
@@ -18,19 +19,6 @@ from ..handlers.handler_registry import handler_registry, initialize_handlers
 if not os.environ.get("GOOGLE_API_KEY"):
     os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
 
-class LoggingHandler(BaseCallbackHandler):
-    def on_chat_model_start(self, serialized: Dict[str, Any], messages: List[List[BaseMessage]], **kwargs) -> None:
-        print("🤖 Chat model started")
-
-    def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        print("✅ Chat model ended")
-
-    def on_chain_start(self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs) -> None:
-        print(f"🔗 Chain '{serialized.get('name')}' started")
-
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs) -> None:
-        print("🏁 Chain ended")
-
 # 전역 변수 초기화
 model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
 json_parser = SimpleJsonOutputParser()
@@ -38,8 +26,28 @@ structured_llm = model.with_structured_output(FinalStockStruct)
 yaml_prompt_manager = YAMLPromptManager()
 
 # 분류기들
-classifier = yaml_prompt_manager.create_chat_prompt("stock_general_branch_prompt") | model
-stock_classifier = yaml_prompt_manager.create_chat_prompt("stock_order_branch") | model.with_structured_output(OrderClassifier)
+# classifier = RunnableLambda(yaml_prompt_manager.create_chat_prompt("stock_general_branch_prompt") | model, name="main_classifier")
+# stock_classifier = RunnableLambda(yaml_prompt_manager.create_chat_prompt("stock_order_branch") | model.with_structured_output(OrderClassifier), name ="stock_classifier")
+
+def create_main_classifier():
+    """메인 분류기 생성 - 콜백 최적화"""
+    def _classifyMain(inputs: Dict[str, Any]) -> Any:
+        prompt = yaml_prompt_manager.create_chat_prompt("stock_general_branch_prompt")
+        return (prompt | model).invoke(inputs)
+    
+    return RunnableLambda(_classifyMain, name="main_classifier")
+
+def create_stock_classifier():
+    """주식 분류기 생성 - 콜백 최적화"""
+    def _classifyStock(inputs: Dict[str, Any]) -> Any:
+        prompt = yaml_prompt_manager.create_chat_prompt("stock_order_branch")
+        return (prompt | model.with_structured_output(OrderClassifier)).invoke(inputs)
+    
+    return RunnableLambda(_classifyStock, name="stock_classifier")
+
+# 분류기들 - 단일 콜백만 발생하도록 최적화
+classifier = create_main_classifier()
+stock_classifier = create_stock_classifier()
 
 # Handler들 초기화
 initialize_handlers(model, structured_llm, json_parser)
@@ -122,3 +130,10 @@ def handle_error(state: AdvisorState) -> AdvisorState:
         "handler": "error_handler"
     }
     return {**state, "final_result": error_result}
+
+    # 노드 함수 메타데이터 설정
+classify_main_runnable = RunnableLambda(classify_main, name="classify_main_node")
+classify_stock_runnable = RunnableLambda(classify_stock, name="classify_stock_node")
+process_stock_with_handlers_runnable = RunnableLambda(process_stock_with_handlers, name="process_stock_with_handlers_node")
+process_general_runnable = RunnableLambda(process_general, name="process_general_node")
+handle_error_runnable = RunnableLambda(handle_error, name="handle_error_node")

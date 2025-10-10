@@ -1,4 +1,3 @@
-# import openai
 import os
 import pandas as pd
 import numpy as np
@@ -6,25 +5,28 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import json
 import time
-from typing import Dict, List, Optional, Tuple
-import requests
+from typing import Dict, List, Optional, Tuple, Union
+import aiohttp
+import asyncio
 from abc import ABC, abstractmethod
 from PyQt5.QAxContainer import QAxWidget
 from PyQt5.QtWidgets import QApplication
 import sys
 import pythoncom
-import logging
+from app.core.logging_config import getLogger
 
-logger = logging.getLogger(__name__)
-base_url = os.getenv("KIWOOM_BASE_URL", "http://localhost:8080/api/v1/kiwoom/")
+logger = getLogger(__name__)
+
+BASE_URL = os.getenv("KIWOOM_BASE_URL", "http://localhost:8080/api/v1/kiwoom/")
 
 class MarketDataManager:
     """시장 데이터 관리 클래스"""
     
     def __init__(self):
-        self.data_cache = {}
-        self._base_url = base_url
-
+        self._dataCache = {}
+        self._baseUrl = BASE_URL
+        self._session: Optional[aiohttp.ClientSession] = None
+        
     async def _getSession(self) -> aiohttp.ClientSession:
         """HTTP 세션 관리"""
         if self._session is None or self._session.closed:
@@ -33,72 +35,103 @@ class MarketDataManager:
                 connector=aiohttp.TCPConnector(limit=10)
             )
         return self._session
-        
-    def get_stock_data(self, symbol: str, period: str = "3mo") -> pd.DataFrame:
-        """주식 데이터 조회"""
+    
+    def getStockData(self, symbol: str, period: str = "3mo") -> pd.DataFrame:
+        """주식 데이터 조회 - 동기"""
         try:
             ticker = yf.Ticker(symbol)
             data = ticker.history(period=period)
-            self.data_cache[symbol] = data
+            self._dataCache[symbol] = data
             return data
         except Exception as e:
-            print(f"데이터 조회 오류 ({symbol}): {e}")
+            logger.error(f"데이터 조회 오류 ({symbol}): {e}")
             return pd.DataFrame()
     
-    def get_real_time_price(self, symbol: str) -> float:
-        """실시간 가격 조회"""
+    def getRealTimePrice(self, symbol: str) -> float:
+        """실시간 가격 조회 - 동기"""
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info
             return info.get('currentPrice', 0)
-        except:
-            return 0
+        except Exception as e:
+            logger.error(f"가격 조회 오류 ({symbol}): {e}")
+            return 0.0
 
-    async def search_korean_stock_symbol(self, stock_name: str) -> str:
-        print(f"search_korean_stock_symbol called with stock_name: {stock_name}")
+    async def searchKoreanStockSymbol(self, stockName: str) -> Union[List[Dict], str]:
+        """한국 주식 심볼 검색 - 완전 비동기"""
+        logger.info(f"searchKoreanStockSymbol called with stockName: {stockName}")
+        print(f"searchKoreanStockSymbol called with stockName: {stockName}")
+        
         try:
             session = await self._getSession()
-            url = f"{self._baseUrl}stock_info/{stock_name}"
+            url = f"{self._baseUrl}stock_info/{stockName}"
             
+            # 🎯 aiohttp로 비동기 HTTP 요청
             async with session.get(url) as response:
                 if response.status == 200:
-                    data = await response.json()
+                    data = await response.json()  # 🎯 올바른 비동기 json() 호출
                     logger.info(f"파싱된 데이터: {data}")
                     return data
                 else:
                     logger.warning(f"API 호출 실패: {response.status}")
-                    return f"{stock_name}.KS"
+                    return f"{stockName}.KS"
                     
-        except:
-            pass
+        except aiohttp.ClientError as e:
+            logger.error(f"HTTP 클라이언트 오류 ({stockName}): {e}")
+            return f"{stockName}.KS"
+        except asyncio.TimeoutError:
+            logger.error(f"API 호출 타임아웃 ({stockName})")
+            return f"{stockName}.KS"
+        except Exception as e:
+            logger.error(f"예상치 못한 오류 ({stockName}): {e}")
+            return f"{stockName}.KS"
+    
+    async def closeSession(self):
+        """세션 정리"""
+        if self._session and not self._session.closed:
+            await self._session.close()
+    
+    # 기존 함수명과의 호환성을 위한 별칭
+    def get_stock_data(self, symbol: str, period: str = "3mo") -> pd.DataFrame:
+        return self.getStockData(symbol, period)
+    
+    def get_real_time_price(self, symbol: str) -> float:
+        return self.getRealTimePrice(symbol)
+    
+    async def search_korean_stock_symbol(self, stock_name: str) -> Union[List[Dict], str]:
+        return await self.searchKoreanStockSymbol(stock_name)
 
 class RiskManager:
     """리스크 관리 클래스"""
     
-    def __init__(self, max_drawdown: float = 0.15, max_single_loss: float = 0.05):
-        self.max_drawdown = max_drawdown
-        self.max_single_loss = max_single_loss
-        self.peak_value = 0
+    def __init__(self, maxDrawdown: float = 0.15, maxSingleLoss: float = 0.05):
+        self._maxDrawdown = maxDrawdown
+        self._maxSingleLoss = maxSingleLoss
+        self._peakValue = 0
         
-    def check_risk_limits(self, current_value: float, trades: List[Dict]) -> Dict:
+    def checkRiskLimits(self, currentValue: float, trades: List[Dict]) -> Dict:
         """리스크 한계 점검"""
-        if current_value > self.peak_value:
-            self.peak_value = current_value
+        if currentValue > self._peakValue:
+            self._peakValue = currentValue
             
-        drawdown = (self.peak_value - current_value) / self.peak_value if self.peak_value > 0 else 0
+        drawdown = (self._peakValue - currentValue) / self._peakValue if self._peakValue > 0 else 0
         
         # 최근 거래의 손실 체크
-        recent_loss = 0
+        recentLoss = 0
         if trades:
-            latest_trade = trades[-1]
-            if latest_trade.get('pnl', 0) < 0:
-                recent_loss = abs(latest_trade['pnl']) / current_value
+            latestTrade = trades[-1]
+            if latestTrade.get('pnl', 0) < 0:
+                recentLoss = abs(latestTrade['pnl']) / currentValue
         
-        risk_status = {
-            "current_drawdown": drawdown,
-            "max_drawdown_exceeded": drawdown > self.max_drawdown,
-            "single_loss_exceeded": recent_loss > self.max_single_loss,
-            "trading_allowed": drawdown <= self.max_drawdown and recent_loss <= self.max_single_loss
+        riskStatus = {
+            "currentDrawdown": drawdown,
+            "maxDrawdownExceeded": drawdown > self._maxDrawdown,
+            "singleLossExceeded": recentLoss > self._maxSingleLoss,
+            "tradingAllowed": drawdown <= self._maxDrawdown and recentLoss <= self._maxSingleLoss
         }
         
-        return risk_status
+        return riskStatus
+    
+    # 기존 함수명과의 호환성을 위한 별칭
+    def check_risk_limits(self, current_value: float, trades: List[Dict]) -> Dict:
+        return self.checkRiskLimits(current_value, trades)
