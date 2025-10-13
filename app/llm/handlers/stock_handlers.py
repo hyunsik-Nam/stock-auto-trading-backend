@@ -6,7 +6,9 @@ from ..utils.advisor_types import AdvisorState
 from ...services.finanace import MarketDataManager
 from ..utils.promptManager import YAMLPromptManager
 from langchain_core.runnables import RunnableLambda
+from app.core.logging_config import getLogger
 
+logger = getLogger(__name__)
 class StockOrderHandler(BaseHandler):
     """주식 주문 처리 Handler"""
     
@@ -91,10 +93,11 @@ class StockPriceHandler(BaseHandler):
             
             stock_data = await self.market_manager.search_korean_stock_symbol(stock_name)
             
-            print(f"@@@@: {stock_data}")
+            logger.info(f"@@@@: {stock_data}")
 
             if stock_data and len(stock_data) > 0:
-                stock_info = stock_data[0]
+                stock_info = stock_data.get('data')[0]
+                logger.info(f"Fetched stock data: {stock_info}")
                 current_price_str = stock_info.get('현재가', '0').replace('+', '').replace('-', '').replace(',', '')
                 current_price = int(current_price_str) if current_price_str.isdigit() else 0
                 
@@ -108,6 +111,7 @@ class StockPriceHandler(BaseHandler):
                     "stock_data": stock_info
                 }
             else:
+                logger.info(f"No stock data found for: {stock_name}")
                 content = {
                     "message": f"{stock_name}의 주가 정보를 찾을 수 없습니다.",
                     "stock_name": stock_name,
@@ -115,6 +119,7 @@ class StockPriceHandler(BaseHandler):
                     "stock_data": {}
                 }
             
+            logger.info(f"Content to be formatted: {content}")
             formatted_result = self._format_response(content, "stock_price", "inquiry")
             
             return {
