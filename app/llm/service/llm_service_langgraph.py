@@ -143,7 +143,7 @@ class LLMServiceGraph:
             callbacks = self._setup_callbacks(stream_callback)
             
             # 초기 메시지
-            classification_data = {"content": "🚀 AI 상담사가 질문을 분석합니다...\n\n"}
+            classification_data = {"node_name": "start", "content": "🚀 AI 상담사가 질문을 분석합니다...\n\n"}
             yield f"data: {json.dumps(classification_data, ensure_ascii=False)}\n\n"
 
             # LangGraph 생성
@@ -181,7 +181,7 @@ class LLMServiceGraph:
                     
                     if node_name in node_feedback:
                         print("@@@@@@@@1")
-                        feedback_data = {"content": f"{node_feedback[node_name]}\n\n"}
+                        feedback_data = {"node_name": node_name, "content": f"{node_feedback[node_name]}\n\n"}
                         yield f"data: {json.dumps(feedback_data, ensure_ascii=False)}\n\n"
                         await asyncio.sleep(0.1)
 
@@ -214,33 +214,50 @@ class LLMServiceGraph:
                             handler_name = final_result.get("handler", "")
                             
                             # Handler 정보와 함께 프리픽스 표시
-                            header = f"{prefix}[{handler_name}] "
-                            for char in header:
-                                yield f"data: {json.dumps({'content': char}, ensure_ascii=False)}\n\n"
-                                await asyncio.sleep(0.02)
+                            # header = f"{prefix}[{handler_name}] "
+                            # for char in header:
+                            #     yield f"data: {json.dumps({'content': char}, ensure_ascii=False)}\n\n"
+                            #     await asyncio.sleep(0.02)
 
                             # 콘텐츠 스트리밍
                             content = final_result.get("content", "")
+                            fcontent = content.get("content","")
+
+                            print(f"@@@@@@@4 content: {fcontent} (type: {type(fcontent)})")
                             
-                            if isinstance(content, dict):
+                            if isinstance(fcontent, dict):
+                                content_start_data = {
+                                    'node_name': 'content_start', 
+                                    'content': ""
+                                }
+                                yield f"data: {json.dumps(content_start_data, ensure_ascii=False)}\n\n"
+                                await asyncio.sleep(0.1)
+
                                 # dict인 경우 message 필드 우선 표시
-                                if "message" in content:
-                                    message = content["message"]
+                                if "message" in fcontent:
+                                    message = fcontent["message"]
                                     for char in str(message):
-                                        yield f"data: {json.dumps({'content': char}, ensure_ascii=False)}\n\n"
+                                        yield f"data: {json.dumps({'node_name': 'chat', 'content': char}, ensure_ascii=False)}\n\n"
                                         await asyncio.sleep(0.03)
                                 else:
-                                    content_str = json.dumps(content, ensure_ascii=False, indent=2)
+                                    content_str = json.dumps(fcontent, ensure_ascii=False, indent=2)
                                     for char in content_str:
-                                        yield f"data: {json.dumps({'content': char}, ensure_ascii=False)}\n\n"
+                                        yield f"data: {json.dumps({'node_name': 'chat', 'content': char}, ensure_ascii=False)}\n\n"
                                         await asyncio.sleep(0.02)
                             else:
-                                for char in str(content):
-                                    yield f"data: {json.dumps({'content': char}, ensure_ascii=False)}\n\n"
+                                content_start_data = {
+                                    'node_name': 'content_start', 
+                                    'content': ""
+                                }
+                                yield f"data: {json.dumps(content_start_data, ensure_ascii=False)}\n\n"
+                                await asyncio.sleep(0.1)
+
+                                for char in str(fcontent):
+                                    yield f"data: {json.dumps({'node_name': 'chat', 'content': char}, ensure_ascii=False)}\n\n"
                                     await asyncio.sleep(0.03)
             
             # 완료 메시지
-            completion_data = {"content": "\n\n🎉 상담이 완료되었습니다!"}
+            completion_data = {"node_name": "end", "content": "\n\n🎉 상담이 완료되었습니다!"}
             yield f"data: {json.dumps(completion_data, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
             

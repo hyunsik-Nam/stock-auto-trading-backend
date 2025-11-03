@@ -58,7 +58,7 @@ class StockOrderHandler(BaseHandler):
             stock_data = await self.market_manager.get_stock_data(symbol)
             
             return {
-                "message": f"{stock_name} {quantity}주 {action} 주문이 완료되었습니다.",
+                "content": f"{stock_name} {quantity}주 {action} 주문이 완료되었습니다.",
                 "stock_name": stock_name,
                 "symbol": symbol,
                 "action": action,
@@ -67,7 +67,7 @@ class StockOrderHandler(BaseHandler):
                 "structured_result": structured_result
             }
         except Exception as e:
-            return {"error": f"주문 처리 실패: {str(e)}"}
+            return {"content": f"주문 처리 실패: {str(e)}"}
     
     @property
     def handler_name(self) -> str:
@@ -102,7 +102,7 @@ class StockPriceHandler(BaseHandler):
                 current_price = int(current_price_str) if current_price_str.isdigit() else 0
                 
                 content = {
-                    "message": f"{stock_info.get('종목명', stock_name)}의 현재가는 {current_price:,}원입니다.",
+                    "content": f"{stock_info.get('종목명', stock_name)}의 현재가는 {current_price:,}원입니다.",
                     "stock_name": stock_info.get('종목명', stock_name),
                     "current_price": current_price,
                     "previous_close": stock_info.get('기준가', ''),
@@ -113,7 +113,7 @@ class StockPriceHandler(BaseHandler):
             else:
                 logger.info(f"No stock data found for: {stock_name}")
                 content = {
-                    "message": f"{stock_name}의 주가 정보를 찾을 수 없습니다.",
+                    "content": f"{stock_name}의 주가 정보를 찾을 수 없습니다.",
                     "stock_name": stock_name,
                     "current_price": 0,
                     "stock_data": {}
