@@ -9,8 +9,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import aiohttp
 import asyncio
 from abc import ABC, abstractmethod
-from PyQt5.QAxContainer import QAxWidget
-from PyQt5.QtWidgets import QApplication
 import sys
 import pythoncom
 from app.core.logging_config import getLogger
