@@ -1,0 +1,33 @@
+# 가상환경, Git, IDE
+venv/
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# 빌드/캐시 파일
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+
+# 대형 데이터 / 모델 파일
+*.csv
+*.xlsx
+*.zip
+*.tar.gz
+*.h5
+*.pkl
+
+# Node 관련
+node_modules/
+dist/
+build/
+
+# 테스트, 문서
+tests/
+docs/
+
+.env
