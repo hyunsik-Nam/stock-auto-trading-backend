@@ -1,10 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
-from supabase import Client
-from app.database.supabase import get_supabase_client
+from fastapi import APIRouter
 from app.services.chat_service import ChatService
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-import json
 
 router = APIRouter()
 chatService = ChatService()

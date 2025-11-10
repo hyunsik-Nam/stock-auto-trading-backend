@@ -1,5 +1,4 @@
     
-import getpass
 import os
 from typing import Any, Dict, List
 
@@ -20,9 +19,11 @@ from langchain_core.runnables import RunnableLambda
 import json
 
 
-if not os.environ.get("GOOGLE_API_KEY"):
-  os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
+load_dotenv()
 
+google_api_key = os.getenv("GOOGLE_API_KEY")
+
+os.environ["GOOGLE_API_KEY"] = google_api_key or ""
 
 class LoggingHandler(BaseCallbackHandler):
     def on_chat_model_start(

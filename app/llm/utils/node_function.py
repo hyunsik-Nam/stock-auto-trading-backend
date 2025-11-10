@@ -1,4 +1,3 @@
-import getpass
 import os
 from typing import Any, Dict, List
 from .advisor_types import AdvisorState
@@ -11,13 +10,25 @@ from langchain_core.outputs import LLMResult
 from langchain.output_parsers.json import SimpleJsonOutputParser
 from langchain_core.runnables import RunnableLambda
 import asyncio
+from pathlib import Path
 
 from ..utils.promptManager import YAMLPromptManager
 from ..utils.structured_outputs import FinalStockStruct, OrderClassifier
 from ..handlers.handler_registry import handler_registry, initialize_handlers
 
-if not os.environ.get("GOOGLE_API_KEY"):
-    os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
+
+load_dotenv()
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+print(f"🔍 GOOGLE_API_KEY 로드 상태: {'✅ 설정됨' if GOOGLE_API_KEY else '❌ 없음'}")
+
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY가 .env 파일에 설정되지 않았습니다. .env 파일에 GOOGLE_API_KEY=your_api_key를 추가해주세요.")
+
+# 환경변수에 명시적으로 설정 (langchain이 인식할 수 있도록)
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+
+
 
 # 전역 변수 초기화
 model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
