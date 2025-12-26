@@ -1,5 +1,7 @@
 import os
 from typing import Any, Dict, List
+
+from langchain_google_genai import ChatGoogleGenerativeAI
 from .advisor_types import AdvisorState
 
 from dotenv import load_dotenv
@@ -20,7 +22,7 @@ from ..handlers.handler_registry import handler_registry, initialize_handlers
 load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-print(f"🔍 GOOGLE_API_KEY 로드 상태: {'✅ 설정됨' if GOOGLE_API_KEY else '❌ 없음'}")
+print(f"🔍 GOOGLE_API_KEY 로드 상태: {'✅ 설정됨' if GOOGLE_API_KEY else '❌ 없음'}")   
 
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY가 .env 파일에 설정되지 않았습니다. .env 파일에 GOOGLE_API_KEY=your_api_key를 추가해주세요.")
@@ -31,7 +33,13 @@ os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
 
 # 전역 변수 초기화
-model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
+#model = init_chat_model("models/gemini-1.5-flash", model_provider="google_genai")
+model = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash-lite",
+    google_api_key=GOOGLE_API_KEY,
+    temperature=0.7,
+    convert_system_message_to_human=True
+)
 json_parser = SimpleJsonOutputParser()
 structured_llm = model.with_structured_output(FinalStockStruct)
 yaml_prompt_manager = YAMLPromptManager()
