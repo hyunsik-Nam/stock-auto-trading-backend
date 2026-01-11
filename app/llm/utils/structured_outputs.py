@@ -1,15 +1,18 @@
 from typing import Optional
 
 from pydantic import BaseModel, Field
-from typing_extensions import Annotated, TypedDict
+from typing_extensions import Annotated, Literal, TypedDict
 
 class OrderClassifier(TypedDict):
-    """주식주문 정보"""
-    stock: Annotated[str, ..., "주식 설정 정보", "example=삼성전자, 애플"]
-    qty: Annotated[str, ..., "주식 수량", "example=10"]
-    action: Annotated[str, ..., "주식 주문 액션", "example=BUY, SELL"]
-    type: Annotated[str, ..., "주식 주문인지 주식관련 질문인지", "example=STOCK_ORDER, STOCK_GENERAL, STOCK_PRICE, STOCK_ANALYSIS"]
-
+    """주식 분류 결과"""
+    stock: Annotated[str, ..., "종목명 (예: 삼성전자, 애플)"]
+    qty: Annotated[str, ..., "수량 (예: 10)"]
+    action: Annotated[str, ..., "매수/매도 (예: BUY, SELL)"]
+    type: Annotated[
+        Literal["STOCK_ORDER", "STOCK_GENERAL", "STOCK_PRICE", "STOCK_ANALYSIS"],
+        ...,
+        "분류 타입 - 반드시 STOCK_ORDER, STOCK_GENERAL, STOCK_PRICE, STOCK_ANALYSIS 중 하나"
+    ]
 class StockStruct(TypedDict):
     """ 주식정보를 담는 데이터 구조 """
 
