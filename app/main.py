@@ -65,4 +65,4 @@ def health():
 # 직접 실행 지원
 if __name__ == "__main__":
     print("🚀 Spring Boot 스타일 FastAPI 서버 시작...")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8010, reload=True)
