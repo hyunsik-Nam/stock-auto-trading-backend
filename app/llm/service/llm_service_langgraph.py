@@ -19,32 +19,40 @@ class LangGraphCallbackHandler(BaseCallbackHandler):
         self.stream_callback = stream_callback
     
     def on_chain_start(self, serialized: Optional[Dict[str, Any]], inputs: Dict[str, Any], **kwargs) -> None:
-        """체인 시작 시 콜백 - None 안전성 확보"""
         try:
+            # 1. 이름 가져오기
+            name = kwargs.get('name') or (serialized.get('name') if serialized else None) or "Unknown"
+            
+            # 2. 너무 자잘한 내부 체인(Noise)은 로그 생략 (원하는 경우)
+            # 예: RunnableSequence, ChatPromptTemplate 등은 로그에서 제외
+            ignore_list = ["RunnableSequence", "ChatPromptTemplate", "StrOutputParser"]
+            if name in ignore_list:
+                return 
+
             metadata = kwargs.get('metadata', {})
-            # serialized가 None인 경우 처리
-            if kwargs.get('name') is None:
-                node_name = "unknown_chain"
-            else:
-                node_name = kwargs.get('name','unknown') if isinstance(kwargs, dict) else "unknown"
-            
-            logger.info(f"🚀 체인 '{node_name}' 시작")
-            logger.info(f"tags: {kwargs.get('tags', [])}")
-            logger.info(f"step : {metadata.get('langgraph_step')}")
-            logger.info(f"nodename : {metadata.get('langgraph_node')}")
-            
-            if self.stream_callback:
-                self.stream_callback(f"⏳ {node_name} 처리 중...")
+            node_name = metadata.get('langgraph_node', 'Global')
+
+            logger.info(f"🚀 [START] 체인: {name} (Node: {node_name})")
                 
         except Exception as e:
-            print(f"❌ on_chain_start 콜백 오류: {e}")
+            print(f"❌ on_chain_start 오류: {e}")
     
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs) -> None:
-        """체인 종료 시 콜백"""
         try:
-            print("✅ 노드 처리 완료")
+            # chain_end에는 name이 잘 안 넘어오는 경우가 많습니다.
+            # 하지만 run_id 등으로 추적하거나, 단순히 종료 메시지를 명확히 합니다.
+            
+            # 여기서도 serialized 정보를 확인해볼 수 있으나, 보통 kwargs에 
+            # parent_run_id 등만 있는 경우가 많습니다.
+            # 헷갈림 방지를 위해 단순히 "완료"만 찍지 말고 구분을 둡니다.
+            
+            # 팁: LangChain 콜백에서 정확히 짝을 맞추려면 run_id 매핑이 필요하지만
+            # 간단하게는 로그 레벨을 낮추거나 들여쓰기를 활용합니다.
+            pass # 혹은 logger.debug("✅ 체인 종료") 
+                 # (너무 많은 로그가 싫다면 여기서 로그를 안 찍는 것도 방법입니다)
+            
         except Exception as e:
-            print(f"❌ on_chain_end 콜백 오류: {e}")
+            print(f"❌ on_chain_end 오류: {e}")
     
     def on_chain_error(self, error: Exception, **kwargs) -> None:
         """체인 오류 시 콜백"""
